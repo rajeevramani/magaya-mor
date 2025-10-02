@@ -80,7 +80,10 @@ pub async fn ensure_scopes(
     );
     let _guard = span.enter();
 
-    if required_scopes.iter().all(|scope| context.has_scope(scope)) {
+    // Check if the user has the required scopes
+    let has_required_scopes = required_scopes.iter().all(|scope| context.has_scope(scope));
+
+    if has_required_scopes {
         return Ok(next.run(request).await);
     }
 

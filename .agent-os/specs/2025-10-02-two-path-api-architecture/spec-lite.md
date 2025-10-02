@@ -1,0 +1,3 @@
+# Spec Summary (Lite)
+
+Enhance the Platform API (`/api/v1/platform/*`) to achieve feature parity with existing Native APIs through simplified abstractions for API developers, while keeping Native APIs unchanged as they already work well. Move OpenAPI import to Platform API with custom filter tag support (`x-flowplane-*`), ensuring all resources are visible across both APIs. Platform API acts as a facade over Native APIs, reusing existing handlers rather than duplicating functionality.

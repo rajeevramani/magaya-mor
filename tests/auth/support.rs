@@ -99,6 +99,67 @@ async fn initialize_schema(pool: &DbPool) {
     .await
     .expect("create token_scopes table");
 
+    // Create clusters table (needed for cluster endpoints)
+    sqlx::query(
+        r#"
+        CREATE TABLE clusters (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            service_name TEXT NOT NULL,
+            configuration TEXT NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(name, version)
+        );
+        "#,
+    )
+    .execute(pool)
+    .await
+    .expect("create clusters table");
+
+    // Create routes table (needed for route endpoints)
+    sqlx::query(
+        r#"
+        CREATE TABLE routes (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            path_prefix TEXT NOT NULL,
+            cluster_name TEXT NOT NULL,
+            configuration TEXT NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (cluster_name) REFERENCES clusters(name) ON DELETE CASCADE,
+            UNIQUE(name, version)
+        );
+        "#,
+    )
+    .execute(pool)
+    .await
+    .expect("create routes table");
+
+    // Create listeners table (needed for listener endpoints)
+    sqlx::query(
+        r#"
+        CREATE TABLE listeners (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            address TEXT NOT NULL,
+            port INTEGER,
+            protocol TEXT NOT NULL DEFAULT 'HTTP',
+            configuration TEXT NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(name, version)
+        );
+        "#,
+    )
+    .execute(pool)
+    .await
+    .expect("create listeners table");
+
     sqlx::query(
         r#"
         CREATE TABLE audit_log (

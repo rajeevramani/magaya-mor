@@ -1,119 +1,366 @@
 # Platform API
 
-Flowplane's Platform API turns a concise intent payload into Envoy configuration. Control-plane operators can expose HTTP services through Envoy without hand-writing listeners, routes, or clusters.
+Flowplane's Platform API provides a simplified, business-oriented interface for managing API gateways and services. It abstracts away the complexity of Envoy configuration while maintaining cross-API visibility with the Native API.
+
+## Overview
+
+The Platform API consists of three main components:
+1. **API Definitions** - High-level API gateway configurations with routes, policies, and upstreams
+2. **Services** - Backend service definitions with endpoints, load balancing, and health checks
+3. **OpenAPI Import** - Import OpenAPI specifications with custom x-flowplane-* extensions
 
 ## Audience & Scopes
-- **Audience**: platform teams that own public APIs.
-- **Required scope**: `routes:write` for both creation and append operations.
-- **Audit**: every mutation is persisted via `AuditLogRepository`.
 
-## Endpoints
-| Method | Path | Description |
-| ------ | ---- | ----------- |
-| `POST` | `/api/v1/api-definitions` | Create an API definition with one or more initial routes |
-| `POST` | `/api/v1/api-definitions/{id}/routes` | Append a route to an existing API definition |
+- **Audience**: Platform teams, developers, and API product owners who need simplified API management
+- **Required scopes**: Vary by operation (see endpoint documentation below)
+- **Audit**: Every mutation is logged via `AuditLogRepository`
+- **Cross-API Visibility**: Resources created via Platform API are visible in Native API and vice versa
 
-> Additional read/update/delete endpoints are future work. The MVP focuses on creation and incremental growth.
+## API Definitions
 
-## Request Schema
+### Endpoints
 
-### Create API (`POST /api/v1/api-definitions`)
+| Method | Path | Description | Required Scopes |
+|--------|------|-------------|-----------------|
+| `GET` | `/api/v1/platform/apis` | List all API definitions | `apis:read` |
+| `POST` | `/api/v1/platform/apis` | Create a new API definition | `apis:write, route-configs:write, listeners:write, clusters:write` |
+| `GET` | `/api/v1/platform/apis/{id}` | Get an API definition by ID | `apis:read` |
+| `PUT` | `/api/v1/platform/apis/{id}` | Update an API definition | `apis:write, route-configs:write, listeners:write, clusters:write` |
+| `DELETE` | `/api/v1/platform/apis/{id}` | Delete an API definition | `apis:write, route-configs:write, listeners:write, clusters:write` |
+
+### Create API Definition
+
 ```json
+POST /api/v1/platform/apis
 {
-  "team": "payments",
-  "domain": "payments.flowplane.dev",
-  "listenerIsolation": false,
-  "tls": { "mode": "terminate", "reference": "arn:...:secret:payments-cert" },
+  "name": "payments-api",
+  "version": "1.0.0",
+  "basePath": "/api/v1/payments",
+  "upstream": {
+    "service": "payments-backend",
+    "endpoints": [
+      {
+        "host": "payments.svc.cluster.local",
+        "port": 8443
+      }
+    ],
+    "tls": true,
+    "loadBalancing": "ROUND_ROBIN"
+  },
   "routes": [
     {
-      "match": { "prefix": "/api/" },
-      "cluster": {
-        "name": "payments-backend",
-        "endpoint": "payments.svc.cluster.local:8443"
-      },
-      "timeoutSeconds": 15,
-      "rewrite": { "prefix": "/internal/" },
-      "filters": { "cors": "allow-authenticated" }
-    }
-  ]
-}
-```
-
-### Append Route (`POST /api/v1/api-definitions/{id}/routes`)
-```json
-{
-  "route": {
-    "match": { "path": "/healthz" },
-    "cluster": {
-      "name": "payments-health",
-      "endpoint": "payments-health.svc.cluster.local:8080"
+      "path": "/transactions",
+      "methods": ["GET", "POST"],
+      "description": "Transaction management"
     },
-    "timeoutSeconds": 5
-  },
-  "deploymentNote": "Expose health endpoint"
+    {
+      "path": "/accounts/{id}",
+      "methods": ["GET"],
+      "description": "Account details"
+    }
+  ],
+  "policies": {
+    "rateLimit": {
+      "requests": 100,
+      "interval": "1m"
+    },
+    "authentication": {
+      "authType": "jwt",
+      "required": true,
+      "config": {
+        "issuer": "https://auth.example.com",
+        "audience": "payments-api"
+      }
+    },
+    "cors": {
+      "origins": ["https://app.example.com"],
+      "methods": ["GET", "POST", "OPTIONS"],
+      "headers": ["Content-Type", "Authorization"],
+      "allowCredentials": true,
+      "maxAge": 3600
+    }
+  }
 }
 ```
 
-### Route Match Rules
-- Provide **either** `match.prefix` or `match.path`.
-- Prefix matches are case-sensitive.
-- `rewrite.prefix` rewrites the upstream prefix; regex rewrites are ignored (logged) in MVP.
+### Response
 
-### Cluster Rules
-- `cluster.endpoint` must be `host:port`.
-- One upstream target is persisted today; additional targets/weights are roadmap items.
-
-### Filter Overrides
-`filters` accepts shortcuts that are canonicalised before storage:
-- `"cors": "allow-authenticated"`
-- `"authn": "disabled"` or `"authn": "my-jwt-requirement"`
-- Fully-qualified filter names map to typed per-filter config when provided as structured JSON.
-
-## Responses
-
-### Create API
 ```json
 {
   "id": "5b9b6a6d-8b81-4d62-92f4-7e9355d8f5c3",
-  "bootstrapUri": "/bootstrap/api-definitions/5b9b6a6d-8b81-4d62-92f4-7e9355d8f5c3.yaml",
-  "routes": ["0a5ea373-16f8-4a4d-9220-9c5c4779c2d5"]
+  "name": "payments-api",
+  "version": "1.0.0",
+  "basePath": "/api/v1/payments",
+  "upstream": {...},
+  "routes": [...],
+  "policies": {...},
+  "clusterId": "payments-api-cluster",
+  "routeConfigId": "payments-api-routes",
+  "listenerId": "payments-api-listener",
+  "createdAt": "2025-01-15T10:00:00Z",
+  "updatedAt": "2025-01-15T10:00:00Z"
 }
 ```
 
-### Append Route
+## Services
+
+### Endpoints
+
+| Method | Path | Description | Required Scopes |
+|--------|------|-------------|-----------------|
+| `GET` | `/api/v1/platform/services` | List all services | `services:read` |
+| `POST` | `/api/v1/platform/services` | Create a new service | `services:write` |
+| `GET` | `/api/v1/platform/services/{name}` | Get a service by name | `services:read` |
+| `PUT` | `/api/v1/platform/services/{name}` | Update a service | `services:write` |
+| `DELETE` | `/api/v1/platform/services/{name}` | Delete a service | `services:write` |
+
+### Create Service
+
+```json
+POST /api/v1/platform/services
+{
+  "name": "user-service",
+  "endpoints": [
+    {
+      "host": "user-1.svc.cluster.local",
+      "port": 8080,
+      "weight": 50
+    },
+    {
+      "host": "user-2.svc.cluster.local",
+      "port": 8080,
+      "weight": 50
+    }
+  ],
+  "loadBalancing": "ROUND_ROBIN",
+  "healthCheck": {
+    "path": "/health",
+    "interval": 10,
+    "timeout": 5,
+    "healthyThreshold": 2,
+    "unhealthyThreshold": 3
+  },
+  "circuitBreaker": {
+    "maxRequests": 100,
+    "maxPendingRequests": 50,
+    "maxConnections": 100,
+    "maxRetries": 3,
+    "consecutiveErrors": 5,
+    "intervalMs": 10000
+  },
+  "outlierDetection": {
+    "consecutive5xx": 5,
+    "intervalMs": 30000,
+    "baseEjectionTimeMs": 30000,
+    "maxEjectionPercent": 50,
+    "minHealthyPercent": 30
+  }
+}
+```
+
+### Load Balancing Strategies
+
+- `ROUND_ROBIN` - Distribute requests evenly across endpoints
+- `LEAST_REQUEST` - Route to endpoint with fewest active requests
+- `RANDOM` - Random endpoint selection
+- `RING_HASH` - Consistent hashing
+- `MAGLEV` - Maglev consistent hashing
+
+## OpenAPI Import
+
+### Endpoint
+
+| Method | Path | Description | Required Scopes |
+|--------|------|-------------|-----------------|
+| `POST` | `/api/v1/platform/import/openapi` | Import an OpenAPI specification | `apis:write, import:write` |
+
+### Import Request
+
+```bash
+curl -X POST http://localhost:8080/api/v1/platform/import/openapi?name=my-api \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/yaml" \
+  --data-binary @openapi.yaml
+```
+
+### Flowplane Extensions
+
+The OpenAPI import supports custom x-flowplane-* extensions for configuring filters and policies:
+
+```yaml
+openapi: 3.0.0
+info:
+  title: My API
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+paths:
+  /users:
+    get:
+      summary: List users
+      x-flowplane-ratelimit:
+        requests: 100
+        interval: "1m"
+      x-flowplane-jwt-auth:
+        required: true
+        issuer: "https://auth.example.com"
+      x-flowplane-cors:
+        origins: ["https://app.example.com"]
+        methods: ["GET", "POST"]
+        headers: ["Content-Type", "Authorization"]
+        allowCredentials: true
+      responses:
+        '200':
+          description: Success
+```
+
+### Import Response
+
 ```json
 {
-  "apiId": "5b9b6a6d-8b81-4d62-92f4-7e9355d8f5c3",
-  "routeId": "6f2462c1-1345-4f63-9ff0-5d52cd518fa2",
-  "revision": 2,
-  "bootstrapUri": "/bootstrap/api-definitions/5b9b6a6d-8b81-4d62-92f4-7e9355d8f5c3.yaml"
+  "id": "generated-api-id",
+  "name": "my-api",
+  "version": "1.0.0",
+  "basePath": "/",
+  "upstream": {
+    "service": "my-api-backend",
+    "endpoints": [{
+      "host": "api.example.com",
+      "port": 443
+    }],
+    "tls": true
+  },
+  "routes": [...],
+  "policies": {
+    "rateLimit": {...},
+    "authentication": {...},
+    "cors": {...}
+  },
+  "createdAt": "2025-01-15T10:00:00Z",
+  "metadata": {
+    "source": "openapi_import",
+    "openapi_version": "3.0.0"
+  }
 }
 ```
 
-## Error Model
-All errors share the shape:
+## Cross-API Visibility
+
+Resources created through the Platform API are automatically visible in the Native API:
+
+- **API Definitions** create corresponding:
+  - Clusters (visible at `/api/v1/clusters`)
+  - Route configurations (visible at `/api/v1/route-configs`)
+  - Listeners (visible at `/api/v1/listeners`)
+
+- **Services** create corresponding:
+  - Clusters with the naming convention `{service-name}-cluster`
+
+Similarly, Native API resources are visible in Platform API views when they match Platform conventions.
+
+## Policy Configuration
+
+### Rate Limiting
+
 ```json
-{ "error": "bad_request", "message": "domain must contain alphanumeric, '.' or '-' characters" }
+"rateLimit": {
+  "requests": 100,
+  "interval": "1m"  // Supports: 1s, 1m, 1h, 1d
+}
 ```
 
-Common failure cases:
-- `bad_request`: validation failure (invalid domain, missing routes, timeout out of range)
-- `conflict`: domain/path collision with an existing API
-- `unauthorized` / `forbidden`: scope or team mismatch
+### JWT Authentication
 
-## Generated Artefacts
-- **Database**: `api_definitions` and `api_routes` tables persist intent, overrides, and listener isolation flags.
-- **Envoy xDS**: `resources_from_api_definitions` converts records into listeners, routes, and clusters that the ADS service serves alongside existing configuration.
-- **Bootstrap**: YAML is written to `data/bootstrap/{id}.yaml` and the URI is recorded on the definition. A download endpoint is on the roadmap; for now the file can be distributed out of band.
+```json
+"authentication": {
+  "authType": "jwt",
+  "required": true,
+  "config": {
+    "issuer": "https://auth.example.com",
+    "audience": "my-api",
+    "jwksUri": "https://auth.example.com/.well-known/jwks.json"
+  }
+}
+```
 
-## Operational Notes
-- Listener isolation cannot be disabled once enabled for a definition.
-- Filter overrides are normalised before storage so repeated requests are idempotent.
-- Audit events are emitted for both create and append operations.
-- The materializer triggers `refresh_platform_api_resources` so new Envoy state is visible to dataplanes immediately.
+### CORS
 
-## Related Reading
-- `specs/004-platform-api-abstraction/spec.md`
-- `specs/004-platform-api-abstraction/tasks.md`
-- `quickstart.md` (root) for end-to-end setup
-- `tests/platform_api/` for lifecycle examples
+```json
+"cors": {
+  "origins": ["https://app.example.com", "https://admin.example.com"],
+  "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  "headers": ["Content-Type", "Authorization", "X-Request-ID"],
+  "allowCredentials": true,
+  "maxAge": 3600
+}
+```
+
+### Circuit Breaker
+
+```json
+"circuitBreaker": {
+  "maxRequests": 100,
+  "maxPendingRequests": 50,
+  "maxConnections": 100,
+  "maxRetries": 3,
+  "consecutiveErrors": 5,
+  "intervalMs": 10000
+}
+```
+
+## Error Responses
+
+All errors follow a consistent format:
+
+```json
+{
+  "error": "bad_request",
+  "message": "Validation failed: name is required"
+}
+```
+
+Common error codes:
+- `bad_request` (400) - Invalid request data
+- `unauthorized` (401) - Missing or invalid authentication
+- `forbidden` (403) - Insufficient permissions
+- `not_found` (404) - Resource not found
+- `conflict` (409) - Resource already exists
+- `internal_server_error` (500) - Unexpected server error
+
+## Migration Guide
+
+### From Legacy Gateway API
+
+The OpenAPI import endpoint has moved:
+- **Old**: `/api/v1/gateways/openapi`
+- **New**: `/api/v1/platform/import/openapi`
+
+The old endpoint automatically redirects to the new location with a 301 status code.
+
+### From Native API
+
+To migrate from Native API to Platform API:
+
+1. **Clusters** → **Services**:
+   - Extract endpoints from cluster configuration
+   - Map load balancing policies
+   - Convert health checks and circuit breakers
+
+2. **Route Configs + Listeners** → **API Definitions**:
+   - Combine route and listener configuration
+   - Extract base paths and domains
+   - Convert filter chains to policies
+
+## Best Practices
+
+1. **Use API Definitions** for public-facing APIs that need standardized policies
+2. **Use Services** for internal service discovery and load balancing
+3. **Import OpenAPI** specs to maintain API documentation as source of truth
+4. **Leverage Cross-API Visibility** to gradually migrate from Native to Platform API
+5. **Apply Policies Consistently** across all routes in an API definition
+
+## Related Documentation
+
+- [`/docs/api.md`](../api.md) - Main API reference
+- [`/specs/007-two-path-api-architecture/spec.md`](../../specs/007-two-path-api-architecture/spec.md) - Architecture specification
+- [`/tests/platform_api/`](../../tests/platform_api/) - Integration test examples

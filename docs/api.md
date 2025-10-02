@@ -93,25 +93,48 @@ curl -sS \
 Response contains the new token value. Update dependent systems immediately—previous secrets stop
 working as soon as the rotation succeeds.
 
-## Core Configuration Endpoints
+## Native API Endpoints
 
-The legacy configuration APIs remain unchanged, but now require scopes:
+The Native API provides direct control over Envoy configuration primitives:
 
-| Endpoint | Method | Scope |
-|----------|--------|-------|
-| `/api/v1/clusters` | `GET` | `clusters:read` |
-| `/api/v1/clusters` | `POST` | `clusters:write` |
-| `/api/v1/clusters/{name}` | `GET` | `clusters:read` |
-| `/api/v1/clusters/{name}` | `PUT`/`DELETE` | `clusters:write` |
-| `/api/v1/routes` | `GET` | `routes:read` |
-| `/api/v1/routes` | `POST` | `routes:write` |
-| `/api/v1/routes/{name}` | `GET` | `routes:read` |
-| `/api/v1/routes/{name}` | `PUT`/`DELETE` | `routes:write` |
-| `/api/v1/listeners` | `GET` | `listeners:read` |
-| `/api/v1/listeners` | `POST` | `listeners:write` |
-| `/api/v1/listeners/{name}` | `GET` | `listeners:read` |
-| `/api/v1/listeners/{name}` | `PUT`/`DELETE` | `listeners:write` |
-| `/api/v1/gateways/openapi` | `POST` | `gateways:import` |
+| Endpoint | Method | Scope | Description |
+|----------|--------|-------|-------------|
+| `/api/v1/clusters` | `GET` | `clusters:read` | List all clusters |
+| `/api/v1/clusters` | `POST` | `clusters:write` | Create a new cluster |
+| `/api/v1/clusters/{name}` | `GET` | `clusters:read` | Get a specific cluster |
+| `/api/v1/clusters/{name}` | `PUT`/`DELETE` | `clusters:write` | Update or delete a cluster |
+| `/api/v1/route-configs` | `GET` | `route-configs:read` | List all route configurations |
+| `/api/v1/route-configs` | `POST` | `route-configs:write` | Create a new route config |
+| `/api/v1/route-configs/{name}` | `GET` | `route-configs:read` | Get a specific route config |
+| `/api/v1/route-configs/{name}` | `PUT`/`DELETE` | `route-configs:write` | Update or delete route config |
+| `/api/v1/listeners` | `GET` | `listeners:read` | List all listeners |
+| `/api/v1/listeners` | `POST` | `listeners:write` | Create a new listener |
+| `/api/v1/listeners/{name}` | `GET` | `listeners:read` | Get a specific listener |
+| `/api/v1/listeners/{name}` | `PUT`/`DELETE` | `listeners:write` | Update or delete a listener |
+
+## Platform API Endpoints
+
+The Platform API provides simplified, business-oriented abstractions:
+
+| Endpoint | Method | Scope | Description |
+|----------|--------|-------|-------------|
+| `/api/v1/platform/apis` | `GET` | `apis:read` | List all API definitions |
+| `/api/v1/platform/apis` | `POST` | `apis:write, route-configs:write, listeners:write, clusters:write` | Create a new API definition |
+| `/api/v1/platform/apis/{id}` | `GET` | `apis:read` | Get an API definition by ID |
+| `/api/v1/platform/apis/{id}` | `PUT` | `apis:write, route-configs:write, listeners:write, clusters:write` | Update an API definition |
+| `/api/v1/platform/apis/{id}` | `DELETE` | `apis:write, route-configs:write, listeners:write, clusters:write` | Delete an API definition |
+| `/api/v1/platform/services` | `GET` | `services:read` | List all services |
+| `/api/v1/platform/services` | `POST` | `services:write` | Create a new service |
+| `/api/v1/platform/services/{name}` | `GET` | `services:read` | Get a service by name |
+| `/api/v1/platform/services/{name}` | `PUT` | `services:write` | Update a service |
+| `/api/v1/platform/services/{name}` | `DELETE` | `services:write` | Delete a service |
+| `/api/v1/platform/import/openapi` | `POST` | `apis:write, import:write` | Import an OpenAPI specification |
+
+### Legacy Redirects
+
+| Endpoint | Method | Redirects To | Description |
+|----------|--------|--------------|-------------|
+| `/api/v1/gateways/openapi` | `POST` | `/api/v1/platform/import/openapi` | Legacy OpenAPI import endpoint (deprecated) |
 
 Each request returns a structured error payload on validation or authorization failure, and logs an
 audit entry for traceability.

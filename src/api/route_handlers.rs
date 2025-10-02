@@ -214,14 +214,14 @@ pub struct ListRoutesQuery {
 
 #[utoipa::path(
     post,
-    path = "/api/v1/routes",
+    path = "/api/v1/route-configs",
     request_body = RouteDefinition,
     responses(
-        (status = 201, description = "Route created", body = RouteResponse),
+        (status = 201, description = "Route configuration created", body = RouteResponse),
         (status = 400, description = "Validation error"),
         (status = 503, description = "Route repository unavailable"),
     ),
-    tag = "routes"
+    tag = "route-configs"
 )]
 pub async fn create_route_handler(
     State(state): State<ApiState>,
@@ -266,16 +266,16 @@ pub async fn create_route_handler(
 
 #[utoipa::path(
     get,
-    path = "/api/v1/routes",
+    path = "/api/v1/route-configs",
     params(
-        ("limit" = Option<i32>, Query, description = "Maximum number of routes to return"),
+        ("limit" = Option<i32>, Query, description = "Maximum number of route configurations to return"),
         ("offset" = Option<i32>, Query, description = "Offset for paginated results"),
     ),
     responses(
-        (status = 200, description = "List of routes", body = [RouteResponse]),
+        (status = 200, description = "List of route configurations", body = [RouteResponse]),
         (status = 503, description = "Route repository unavailable"),
     ),
-    tag = "routes"
+    tag = "route-configs"
 )]
 pub async fn list_routes_handler(
     State(state): State<ApiState>,
@@ -294,14 +294,14 @@ pub async fn list_routes_handler(
 
 #[utoipa::path(
     get,
-    path = "/api/v1/routes/{name}",
+    path = "/api/v1/route-configs/{name}",
     params(("name" = String, Path, description = "Name of the route configuration")),
     responses(
-        (status = 200, description = "Route details", body = RouteResponse),
-        (status = 404, description = "Route not found"),
+        (status = 200, description = "Route configuration details", body = RouteResponse),
+        (status = 404, description = "Route configuration not found"),
         (status = 503, description = "Route repository unavailable"),
     ),
-    tag = "routes"
+    tag = "route-configs"
 )]
 pub async fn get_route_handler(
     State(state): State<ApiState>,
@@ -314,16 +314,16 @@ pub async fn get_route_handler(
 
 #[utoipa::path(
     put,
-    path = "/api/v1/routes/{name}",
+    path = "/api/v1/route-configs/{name}",
     params(("name" = String, Path, description = "Name of the route configuration")),
     request_body = RouteDefinition,
     responses(
-        (status = 200, description = "Route updated", body = RouteResponse),
+        (status = 200, description = "Route configuration updated", body = RouteResponse),
         (status = 400, description = "Validation error"),
-        (status = 404, description = "Route not found"),
+        (status = 404, description = "Route configuration not found"),
         (status = 503, description = "Route repository unavailable"),
     ),
-    tag = "routes"
+    tag = "route-configs"
 )]
 pub async fn update_route_handler(
     State(state): State<ApiState>,
@@ -375,14 +375,14 @@ pub async fn update_route_handler(
 
 #[utoipa::path(
     delete,
-    path = "/api/v1/routes/{name}",
+    path = "/api/v1/route-configs/{name}",
     params(("name" = String, Path, description = "Name of the route configuration")),
     responses(
-        (status = 204, description = "Route deleted"),
-        (status = 404, description = "Route not found"),
+        (status = 204, description = "Route configuration deleted"),
+        (status = 404, description = "Route configuration not found"),
         (status = 503, description = "Route repository unavailable"),
     ),
-    tag = "routes"
+    tag = "route-configs"
 )]
 pub async fn delete_route_handler(
     State(state): State<ApiState>,

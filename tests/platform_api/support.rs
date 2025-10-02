@@ -87,6 +87,25 @@ pub async fn send_request(
     app.router().oneshot(request).await.expect("request")
 }
 
+pub async fn send_request_with_body(
+    app: &PlatformApiApp,
+    method: Method,
+    path: &str,
+    token: Option<&str>,
+    body: Vec<u8>,
+    content_type: &str,
+) -> Response<Body> {
+    let mut builder = Request::builder().method(method).uri(path);
+    if let Some(token) = token {
+        builder = builder.header("Authorization", format!("Bearer {}", token));
+    }
+
+    let request =
+        builder.header("content-type", content_type).body(Body::from(body)).expect("build request");
+
+    app.router().oneshot(request).await.expect("request")
+}
+
 pub async fn read_json<T: DeserializeOwned>(response: Response<Body>) -> T {
     let bytes =
         to_bytes(response.into_body(), usize::MAX).await.expect("read response body as bytes");

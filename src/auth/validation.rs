@@ -8,7 +8,7 @@ use validator::{Validate, ValidationError, ValidationErrors};
 
 lazy_static! {
     static ref NAME_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9_-]{3,64}$").unwrap();
-    static ref SCOPE_REGEX: Regex = Regex::new(r"^[a-z]+:[a-z]+$").unwrap();
+    static ref SCOPE_REGEX: Regex = Regex::new(r"^[a-z][a-z-]*:[a-z]+$").unwrap();
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
@@ -101,7 +101,12 @@ mod tests {
     #[test]
     fn scope_validation() {
         assert!(validate_scope("clusters:read").is_ok());
+        assert!(validate_scope("route-configs:read").is_ok());
+        assert!(validate_scope("route-configs:write").is_ok());
+        assert!(validate_scope("services:read").is_ok());
+        assert!(validate_scope("services:write").is_ok());
         assert!(validate_scope("bad_scope").is_err());
+        assert!(validate_scope("bad-scope-").is_err());
     }
 
     #[test]
